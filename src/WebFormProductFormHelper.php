@@ -44,10 +44,11 @@ class WebFormProductFormHelper {
     return $element;
   }
 
-  public static function saveSubmission(array &$form, FormStateInterface $form_state) {
+  public static function submissionToCart(array &$form, FormStateInterface $form_state) {
     $sid = $form_state->getFormObject()->getEntity()->id();
     $skus = [];
     foreach (db_query('SELECT * FROM {webform_submission_data} WHERE sid = :sid', [':sid' => $sid]) as $row) {
+      // The same SKU might be repeated.
       $skus[] = "$row->webform_id:$row->name";
       $skus[] = "$row->webform_id:$row->name:$row->value";
     }

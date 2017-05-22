@@ -27,5 +27,5 @@ function webform_product_form_webform_ui_element_form_alter(&$form, FormStateInt
  * Implements hook_form_BASE_FORM_ID_alter().
  */
 function webform_product_form_webform_submission_form_alter(&$form, FormStateInterface $form_state, $form_id) {
-  $form['actions']['submit']['#submit'][] = [WebFormProductFormHelper::class, 'saveSubmission'];
+  $form['actions']['submit']['#submit'][] = [WebFormProductFormHelper::class, 'submissionToCart'];
 }
