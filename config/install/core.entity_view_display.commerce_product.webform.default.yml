@@ -1,0 +1,37 @@
+uuid: 31fc8849-e1bc-4c8f-84cf-3caa47051473
+langcode: en
+status: true
+dependencies:
+  config:
+    - commerce_product.commerce_product_type.webform
+    - field.field.commerce_product.webform.body
+    - field.field.commerce_product.webform.stores
+    - field.field.commerce_product.webform.variations
+  module:
+    - commerce_product
+    - text
+id: commerce_product.webform.default
+targetEntityType: commerce_product
+bundle: webform
+mode: default
+content:
+  body:
+    label: hidden
+    type: text_default
+    weight: -4
+    settings: {  }
+    third_party_settings: {  }
+    region: content
+  variations:
+    type: commerce_add_to_cart
+    weight: 10
+    label: above
+    settings:
+      combine: true
+    third_party_settings: {  }
+    region: content
+hidden:
+  created: true
+  langcode: true
+  stores: true
+  uid: true

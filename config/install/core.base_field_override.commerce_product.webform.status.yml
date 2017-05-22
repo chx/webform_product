@@ -1,0 +1,22 @@
+uuid: 188496e4-e56c-4d85-80f1-d6d317f64b64
+langcode: en
+status: true
+dependencies:
+  config:
+    - commerce_product.commerce_product_type.webform
+id: commerce_product.webform.status
+field_name: status
+entity_type: commerce_product
+bundle: webform
+label: Published
+description: 'Whether the product is published.'
+required: false
+translatable: true
+default_value:
+  -
+    value: 0
+default_value_callback: ''
+settings:
+  on_label: 'On'
+  off_label: 'Off'
+field_type: boolean

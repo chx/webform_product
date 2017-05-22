@@ -2,7 +2,6 @@
 
 namespace Drupal\webform_product;
 
-use Drupal\commerce_order\Entity\Order;
 use Drupal\commerce_product\Entity\ProductVariation;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Url;
@@ -54,6 +53,7 @@ class WebFormProductFormHelper {
     }
     $variations = [];
     $variationIds = \Drupal::entityQuery('commerce_product_variation')
+      ->condition('type', 'webform')
       ->condition('sku', $skus, 'IN')
       ->execute();
     foreach (ProductVariation::loadMultiple($variationIds) as $variation) {
