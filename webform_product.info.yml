@@ -1,0 +1,9 @@
+name: Webform Product
+type: module
+description: 'Links commerce products to webform elements.'
+package: Webform
+core: 8.x
+dependencies:
+  - 'drupal:field'
+  - 'drupal:system (>= 8.2)'
+  - 'drupal:user'

@@ -1,0 +1,31 @@
+<?php
+
+use Drupal\Component\Plugin\Factory\DefaultFactory;
+use Drupal\Core\Form\FormStateInterface;
+use Drupal\webform_product\WebFormProductFormHelper;
+
+/**
+ * Implements hook_element_info_alter().
+ */
+function webform_product_element_info_alter(array &$info) {
+  foreach (\Drupal::service('plugin.manager.webform_product')->getDefinitions() as $id => $definition) {
+    /** @var \Drupal\Component\Plugin\PluginManagerInterface $pluginManager */
+    if (isset($info[$id])) {
+      $info[$id]['#process'][] = [DefaultFactory::getPluginClass($id, $definition), 'process'];
+    }
+  }
+}
+
+/**
+ * Implements hook_form_FORM_ID_alter().
+ */
+function webform_product_form_webform_ui_element_form_alter(&$form, FormStateInterface $form_state, $form_id) {
+  $form['properties']['element']['title']['#process'][] = [WebFormProductFormHelper::class, 'processElementForm'];
+}
+
+/**
+ * Implements hook_form_BASE_FORM_ID_alter().
+ */
+function webform_product_form_webform_submission_form_alter(&$form, FormStateInterface $form_state, $form_id) {
+  $form['actions']['submit']['#submit'][] = [WebFormProductFormHelper::class, 'saveSubmission'];
+}
