@@ -2,7 +2,6 @@
 
 namespace Drupal\webform_product\Controller;
 
-use Drupal\commerce_product\Entity\Product;
 use Drupal\commerce_product\Entity\ProductVariation;
 use Drupal\Core\Controller\ControllerBase;
 use Zend\Diactoros\Response\RedirectResponse;
@@ -20,7 +19,7 @@ class Page extends ControllerBase {
       ->execute();
     if ($ids) {
       /** @var \Drupal\commerce_product\Entity\ProductVariation $variation */
-      $product = $entityStorage->load(reset($ids))->getProduct();
+      $variation = $entityStorage->load(reset($ids));
     }
     else {
       $variation = ProductVariation::create([
@@ -29,13 +28,7 @@ class Page extends ControllerBase {
         'title' => $title,
       ]);
       $variation->save();
-      $product = Product::create([
-        'type' => 'webform',
-        'title' => $title,
-        'variations' => [$variation],
-      ]);
-      $product->save();
     }
-    return new RedirectResponse($product->toUrl('edit-form')->toString());
+    return new RedirectResponse($variation->toUrl('edit-form')->toString());
   }
 }

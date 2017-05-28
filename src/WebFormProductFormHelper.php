@@ -27,7 +27,7 @@ class WebFormProductFormHelper {
       $complete_form['#webform_product_links'][$variation->getSku()] = [
         '#type' => 'link',
         '#title' => t('Price: @price', ['@price' => $variation->getPrice()]),
-        '#url' => $variation->getProduct()->toUrl('edit-form'),
+        '#url' => $variation->toUrl('edit-form'),
       ];
     }
     if (isset($complete_form['#webform_product_links'][$skuRoot])) {
