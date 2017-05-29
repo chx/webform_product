@@ -2,6 +2,7 @@
 
 namespace Drupal\webform_product;
 
+use Drupal\commerce_cart\Exception\DuplicateCartException;
 use Drupal\commerce_product\Entity\ProductVariation;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Url;
@@ -59,11 +60,11 @@ class WebFormProductFormHelper {
     foreach (ProductVariation::loadMultiple($variationIds) as $variation) {
     /** @var \Drupal\commerce_product\Entity\ProductVariation $variation */
       $variations[$variation->getSku()] = $variation;
-      $stores = $variation->getStores();
     }
     if ($skus = array_intersect($skus, array_keys($variations))) {
-      /** @var \Drupal\commerce_order\Entity\OrderInterface $cartOrder */
-      $cartOrder = \Drupal::service('commerce_cart.cart_provider')->createCart('default', reset($stores));
+      $store = \Drupal::service('commerce_store.store_context')->getStore();
+      $cartProvider = \Drupal::service('commerce_cart.cart_provider');
+      $cartOrder = $cartProvider->getCart('default', $store) ?: $cartProvider->createCart('default', $store);
       /** @var \Drupal\commerce_cart\CartManager $cartManager */
       $cartManager = \Drupal::service('commerce_cart.cart_manager');
       foreach ($skus as $sku) {

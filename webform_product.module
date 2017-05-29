@@ -1,8 +1,11 @@
 <?php
 
+use Drupal\commerce_product\Entity\Product;
 use Drupal\Component\Plugin\Factory\DefaultFactory;
 use Drupal\Core\Entity\Routing\AdminHtmlRouteProvider;
+use Drupal\Core\Field\FieldDefinitionInterface;
 use Drupal\Core\Form\FormStateInterface;
+use Drupal\webform_product\NakedProductVariation;
 use Drupal\webform_product\WebFormProductFormHelper;
 
 /**
@@ -38,11 +41,30 @@ function webform_product_entity_type_alter(array &$entity_types) {
   if (isset($entity_types['commerce_product_variation'])) {
     /** @var \Drupal\Core\Entity\EntityTypeInterface $entity_type */
     $entity_type = $entity_types['commerce_product_variation'];
+    #$entity_type->setClass(NakedProductVariation::class);
     if (!$entity_type->hasLinkTemplate('edit-form')) {
       $entity_types['commerce_product_variation']->setLinkTemplate('edit-form', '/product_variation/{commerce_product_variation}/edit');
     }
     if (!$entity_type->hasHandlerClass('route_provider')) {
       $entity_type->setHandlerClass('route_provider', ['default' => AdminHtmlRouteProvider::class]);
+    }
+  }
+}
+
+/**
+ * Implements hook_ENTITY_TYPE_load().
+ */
+function webform_product_commerce_product_variation_load($entities) {
+  /** @var \Drupal\commerce_product\Entity\ProductVariationInterface $entity */
+  foreach ($entities as $entity) {
+    // template_preprocess_commerce_product_variation() uses getProduct() so
+    // let's make sure there is a product, after all...
+    if ($entity->bundle() == 'webform') {
+      $entity->set('product_id', Product::create([
+        'type' => 'webform',
+        'variations' => [$entity],
+        'product_id' => 0,
+      ]));
     }
   }
 }
