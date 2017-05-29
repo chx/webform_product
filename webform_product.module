@@ -3,9 +3,7 @@
 use Drupal\commerce_product\Entity\Product;
 use Drupal\Component\Plugin\Factory\DefaultFactory;
 use Drupal\Core\Entity\Routing\AdminHtmlRouteProvider;
-use Drupal\Core\Field\FieldDefinitionInterface;
 use Drupal\Core\Form\FormStateInterface;
-use Drupal\webform_product\NakedProductVariation;
 use Drupal\webform_product\WebFormProductFormHelper;
 
 /**
@@ -41,7 +39,6 @@ function webform_product_entity_type_alter(array &$entity_types) {
   if (isset($entity_types['commerce_product_variation'])) {
     /** @var \Drupal\Core\Entity\EntityTypeInterface $entity_type */
     $entity_type = $entity_types['commerce_product_variation'];
-    #$entity_type->setClass(NakedProductVariation::class);
     if (!$entity_type->hasLinkTemplate('edit-form')) {
       $entity_types['commerce_product_variation']->setLinkTemplate('edit-form', '/product_variation/{commerce_product_variation}/edit');
     }
