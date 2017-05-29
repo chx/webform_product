@@ -1,7 +1,0 @@
-webform_product.page:
-  path: '/webform_product/{sku}/{title}'
-  defaults:
-    _controller: '\Drupal\webform_product\Controller\Page::page'
-  requirements:
-    _permission: 'administer commerce_product'
-    _csrf_token: 'TRUE'
