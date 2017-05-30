@@ -47,7 +47,9 @@ class WebFormProductFormHelper {
     if (!$prices = $webform->getThirdPartySettings('webform_product')) {
       return;
     }
+    /** @var \Drupal\commerce_store\Entity\StoreInterface $store */
     $store = \Drupal::service('commerce_store.store_context')->getStore();
+    $currencyCode = $store->getDefaultCurrency()->getCurrencyCode();
     /** @var \Drupal\commerce_cart\CartProviderInterface $cartProvider */
     $cartProvider = \Drupal::service('commerce_cart.cart_provider');
     /** @var \Drupal\commerce_order\Entity\OrderInterface $cartOrder */
@@ -60,17 +62,17 @@ class WebFormProductFormHelper {
           $orderItem = OrderItem::create([
             'type' => 'webform',
             'title' => $elements[$key]['#title'],
-            'unit_price' => ['number' => $prices[$key]['top']]
+            'unit_price' => ['number' => $prices[$key]['top'], 'currency_code' => $currencyCode]
           ]);
           $orderItem->save();
           $cartOrder->addItem($orderItem);
         }
         if (!empty($prices[$key]['options'])) {
-          foreach (array_keys(array_intersect_key($value, $prices[$key]['options'])) as $option) {
+          foreach (array_intersect($value, array_keys($prices[$key]['options'])) as $option) {
             $orderItem = OrderItem::create([
               'type' => 'webform',
               'title' => $elements[$key]['#options'][$option],
-              'unit_price' => ['number' => $prices[$key]['options'][$option]]
+              'unit_price' => ['number' => $prices[$key]['options'][$option], 'currency_code' => $currencyCode]
             ]);
             $orderItem->save();
             $cartOrder->addItem($orderItem);
@@ -78,6 +80,7 @@ class WebFormProductFormHelper {
         }
       }
     }
+    $cartOrder->save();
     $form_state->setRedirect('commerce_cart.page');
   }
 
