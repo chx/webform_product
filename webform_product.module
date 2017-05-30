@@ -20,7 +20,7 @@ function webform_product_element_info_alter(array &$info) {
  * Implements hook_form_FORM_ID_alter().
  */
 function webform_product_form_webform_ui_element_form_alter(&$form, FormStateInterface $form_state, $form_id) {
-  $form['properties']['element']['title']['#process'][] = [WebFormProductFormHelper::class, 'processElementForm'];
+  $form['properties']['element']['#process'][] = [WebFormProductFormHelper::class, 'processElementForm'];
 }
 
 /**
