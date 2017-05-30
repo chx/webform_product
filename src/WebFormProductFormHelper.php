@@ -48,6 +48,7 @@ class WebFormProductFormHelper {
       return;
     }
     $store = \Drupal::service('commerce_store.store_context')->getStore();
+    /** @var \Drupal\commerce_cart\CartProviderInterface $cartProvider */
     $cartProvider = \Drupal::service('commerce_cart.cart_provider');
     /** @var \Drupal\commerce_order\Entity\OrderInterface $cartOrder */
     $cartOrder = $cartProvider->getCart('default', $store) ?: $cartProvider->createCart('default', $store);
@@ -57,6 +58,7 @@ class WebFormProductFormHelper {
       if (isset($prices[$key])) {
         if (!empty($prices[$key]['top'])) {
           $orderItem = OrderItem::create([
+            'type' => 'webform',
             'title' => $elements[$key]['#title'],
             'unit_price' => ['number' => $prices[$key]['top']]
           ]);
@@ -64,8 +66,9 @@ class WebFormProductFormHelper {
           $cartOrder->addItem($orderItem);
         }
         if (!empty($prices[$key]['options'])) {
-          foreach (array_keys($value) as $option) {
+          foreach (array_keys(array_intersect_key($value, $prices[$key]['options'])) as $option) {
             $orderItem = OrderItem::create([
+              'type' => 'webform',
               'title' => $elements[$key]['#options'][$option],
               'unit_price' => ['number' => $prices[$key]['options'][$option]]
             ]);

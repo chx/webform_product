@@ -1,0 +1,31 @@
+uuid: fe84dcd8-059a-4702-8d26-7550e69f11ca
+langcode: en
+status: true
+dependencies:
+  config:
+    - commerce_order.commerce_order_item_type.webform
+    - core.entity_form_mode.commerce_order_item.add_to_cart
+id: commerce_order_item.webform.add_to_cart
+targetEntityType: commerce_order_item
+bundle: webform
+mode: add_to_cart
+content:
+  quantity:
+    type: number
+    weight: 1
+    region: content
+    settings:
+      placeholder: ''
+    third_party_settings: {  }
+  title:
+    type: string_textfield
+    weight: -1
+    region: content
+    settings:
+      size: 60
+      placeholder: ''
+    third_party_settings: {  }
+hidden:
+  created: true
+  unit_price: true
+
