@@ -1,0 +1,6 @@
+{
+    "name": "drupal/webform_product",
+    "type": "drupal-module",
+    "license": "GPL-2.0+",
+    "minimum-stability": "dev"
+}
