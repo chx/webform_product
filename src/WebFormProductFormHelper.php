@@ -48,7 +48,7 @@ class WebFormProductFormHelper {
       return;
     }
     /** @var \Drupal\commerce_store\Entity\StoreInterface $store */
-    $store = \Drupal::service('commerce_store.store_context')->getStore();
+    $store = \Drupal::service('commerce_store.current_store')->getStore();
     $currencyCode = $store->getDefaultCurrency()->getCurrencyCode();
     /** @var \Drupal\commerce_cart\CartProviderInterface $cartProvider */
     $cartProvider = \Drupal::service('commerce_cart.cart_provider');
@@ -68,6 +68,11 @@ class WebFormProductFormHelper {
           $cartOrder->addItem($orderItem);
         }
         if (!empty($prices[$key]['options'])) {
+          // Fix for when value is not an array.
+          if (!is_array($value)) {
+            $value = array($value);
+          }
+
           foreach (array_intersect($value, array_keys($prices[$key]['options'])) as $option) {
             $orderItem = OrderItem::create([
               'type' => 'webform',
@@ -85,4 +90,3 @@ class WebFormProductFormHelper {
   }
 
 }
-
