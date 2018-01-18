@@ -70,7 +70,7 @@ class WebFormProductFormHelper {
         if (!empty($prices[$key]['options'])) {
           // Fix for when value is not an array.
           if (!is_array($value)) {
-            $value = array($value);
+            $value = [$value];
           }
 
           foreach (array_intersect($value, array_keys($prices[$key]['options'])) as $option) {
