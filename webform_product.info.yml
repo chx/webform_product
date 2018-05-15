@@ -1,9 +1,10 @@
 name: Webform Product
 type: module
-description: 'Links commerce products to webform elements.'
+description: 'Setup a single webform as a product for Commerce.'
 package: Webform
 core: 8.x
 dependencies:
-  - 'drupal:field'
-  - 'drupal:system (>= 8.2)'
-  - 'drupal:user'
+  - 'webform:webform'
+  - 'commerce:commerce'
+  - 'commerce:commerce_order'
+  - 'commerce:commerce_product'
