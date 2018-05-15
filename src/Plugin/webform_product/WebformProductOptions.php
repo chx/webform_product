@@ -8,9 +8,20 @@ use Drupal\webform_product\WebFormProductFormHelper;
 /**
  * @PluginID("webform_options")
  */
-class WebformOptions {
+class WebformProductOptions {
 
   public static function process(&$element, FormStateInterface $form_state) {
+
+    // Check for price_* elements, skip the check for Option definitions.
+    if (method_exists($form_state->getFormObject(), 'getElement')) {
+      $element_info = $form_state->getFormObject()->getElement();
+
+      // Only change the form of price_* webform elements.
+      if (strpos($element_info['#type'], 'price_', 0) === FALSE) {
+        return $element;
+      }
+    }
+
     $element['options']['#element']['price'] = [
       '#type' => 'textfield',
       '#title' => t('Price'),

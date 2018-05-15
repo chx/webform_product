@@ -5,10 +5,18 @@ namespace Drupal\webform_product;
 use Drupal\commerce_order\Entity\OrderItem;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\webform\WebformInterface;
+use Drupal\webform\WebformSubmissionInterface;
 
 class WebFormProductFormHelper {
 
   public static function processElementForm(&$element, FormStateInterface $form_state, &$complete_form) {
+    $element_info = $form_state->getFormObject()->getElement();
+
+    // Only change the form of price_* webform elements.
+    if (strpos($element_info['#type'], 'price_', 0) === FALSE) {
+      return $element;
+    }
+
     $element['price'] = [
       '#type' => 'textfield',
       '#title' => t('Price'),
@@ -25,13 +33,10 @@ class WebFormProductFormHelper {
   }
 
   public static function getSetting(FormStateInterface $form_state, $settingKey) {
-    /** @var \Drupal\webform_ui\Form\WebformUiElementEditForm $formObject */
-    $formObject = $form_state->getFormObject();
+    $webform = self::getWebformInFormState($form_state);
 
-    /** @var \Drupal\webform\WebformInterface $webform */
-    $webform = method_exists($formObject, 'getWebform') ? $formObject->getWebform() : NULL;
-
-    if ($webform instanceof WebformInterface) {
+    if ($webform) {
+      $formObject = $form_state->getFormObject();
       $setting = $webform->getThirdPartySetting('webform_product', $formObject->getKey());
     }
 
@@ -39,12 +44,10 @@ class WebFormProductFormHelper {
   }
 
   public static function setSetting(FormStateInterface $form_state, $settingKey, $value) {
-    /** @var \Drupal\webform_ui\Form\WebformUiElementEditForm $formObject */
-    $formObject = $form_state->getFormObject();
+    $webform = self::getWebformInFormState($form_state);
 
-    $webform = method_exists($formObject, 'getWebform') ? $formObject->getWebform() : NULL;
-
-    if ($webform instanceof WebformInterface) {
+    if ($webform) {
+      $formObject = $form_state->getFormObject();
       $elementKey = $formObject->getKey();
       $setting = $webform->getThirdPartySetting('webform_product', $elementKey);
       $setting[$settingKey] = $value;
@@ -55,10 +58,15 @@ class WebFormProductFormHelper {
   public static function submissionToCart(array &$form, FormStateInterface $form_state) {
     /** @var \Drupal\webform\WebformSubmissionInterface $submission */
     $submission = $form_state->getFormObject()->getEntity();
+    if (!$submission instanceof WebformSubmissionInterface) {
+      return;
+    }
+
     $webform = $submission->getWebform();
     if (!$prices = $webform->getThirdPartySettings('webform_product')) {
       return;
     }
+
     /** @var \Drupal\commerce_store\Entity\StoreInterface $store */
     $store = \Drupal::service('commerce_store.current_store')->getStore();
     $currencyCode = $store->getDefaultCurrency()->getCurrencyCode();
@@ -101,4 +109,12 @@ class WebFormProductFormHelper {
     $form_state->setRedirect('commerce_cart.page');
   }
 
+  private static function getWebformInFormState(FormStateInterface $form_state) {
+    /** @var \Drupal\webform_ui\Form\WebformUiElementEditForm $formObject */
+    $formObject = $form_state->getFormObject();
+
+    $webformObject = method_exists($formObject, 'getWebform') ? $formObject->getWebform() : NULL;
+
+    return ($webformObject instanceof WebformInterface) ? $webformObject : NULL;
+  }
 }

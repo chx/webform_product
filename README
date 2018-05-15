@@ -5,7 +5,7 @@
 
 ## Usage
 1. Create a webform
-2. Add a option element
+2. Add a Price element
 3. Setup the values of the element
    1. Use the price next to the values to simulate product variations
    2. Use the price below to create multiple products with one price
