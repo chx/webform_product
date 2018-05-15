@@ -1,4 +1,3 @@
-uuid: fe84dcd8-059a-4702-8d26-7550e69f11ca
 langcode: en
 status: true
 dependencies:
@@ -28,4 +27,3 @@ content:
 hidden:
   created: true
   unit_price: true
-
