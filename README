@@ -1,0 +1,17 @@
+# ReadMe
+
+## Installation
+1. Download and install the module
+
+## Usage
+1. Create a webform
+2. Add a option element
+3. Setup the values of the element
+   1. Use the price next to the values to simulate product variations
+   2. Use the price below to create multiple products with one price
+4. Save the webform and create a submission
+
+## Known issues
+* Will only work for the default store, if no store is selected as default, it will crash
+* There is no reference to the webform submission in the order
+* There is no reference to the order in the webform submission
