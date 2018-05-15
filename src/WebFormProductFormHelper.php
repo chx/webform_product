@@ -4,6 +4,7 @@ namespace Drupal\webform_product;
 
 use Drupal\commerce_order\Entity\OrderItem;
 use Drupal\Core\Form\FormStateInterface;
+use Drupal\webform\WebformInterface;
 
 class WebFormProductFormHelper {
 
@@ -26,18 +27,29 @@ class WebFormProductFormHelper {
   public static function getSetting(FormStateInterface $form_state, $settingKey) {
     /** @var \Drupal\webform_ui\Form\WebformUiElementEditForm $formObject */
     $formObject = $form_state->getFormObject();
-    $setting = $formObject->getWebform()->getThirdPartySetting('webform_product', $formObject->getKey());
+
+    /** @var \Drupal\webform\WebformInterface $webform */
+    $webform = method_exists($formObject, 'getWebform') ? $formObject->getWebform() : NULL;
+
+    if ($webform instanceof WebformInterface) {
+      $setting = $webform->getThirdPartySetting('webform_product', $formObject->getKey());
+    }
+
     return isset($setting[$settingKey]) ? $setting[$settingKey] : NULL;
   }
 
   public static function setSetting(FormStateInterface $form_state, $settingKey, $value) {
     /** @var \Drupal\webform_ui\Form\WebformUiElementEditForm $formObject */
     $formObject = $form_state->getFormObject();
-    $webform = $formObject->getWebform();
-    $elementKey = $formObject->getKey();
-    $setting = $webform->getThirdPartySetting('webform_product', $elementKey);
-    $setting[$settingKey] = $value;
-    $webform->setThirdPartySetting('webform_product', $elementKey, $setting);
+
+    $webform = method_exists($formObject, 'getWebform') ? $formObject->getWebform() : NULL;
+
+    if ($webform instanceof WebformInterface) {
+      $elementKey = $formObject->getKey();
+      $setting = $webform->getThirdPartySetting('webform_product', $elementKey);
+      $setting[$settingKey] = $value;
+      $webform->setThirdPartySetting('webform_product', $elementKey, $setting);
+    }
   }
 
   public static function submissionToCart(array &$form, FormStateInterface $form_state) {
