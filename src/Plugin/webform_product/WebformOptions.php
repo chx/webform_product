@@ -8,7 +8,7 @@ use Drupal\webform_product\WebFormProductFormHelper;
 /**
  * @PluginID("webform_options")
  */
-class WebformProductOptions {
+class WebformOptions {
 
   public static function process(&$element, FormStateInterface $form_state) {
 
@@ -20,6 +20,9 @@ class WebformProductOptions {
       if (strpos($element_info['#type'], 'price_', 0) === FALSE) {
         return $element;
       }
+    }
+    else {
+      return $element;
     }
 
     $element['options']['#element']['price'] = [
