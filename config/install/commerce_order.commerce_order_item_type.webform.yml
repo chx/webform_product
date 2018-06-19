@@ -1,10 +1,8 @@
-uuid: ab3756e0-60a3-4ae4-a72a-5bd192d518c5
 langcode: en
 status: true
 dependencies: {  }
-label: webform
+label: Webform
 id: webform
 purchasableEntityType: ''
 orderType: default
 traits: {  }
-
