@@ -2,4 +2,3 @@ services:
   plugin.manager.webform_product:
     class: Drupal\webform_product\WebformProductPluginManager
     parent: default_plugin_manager
-

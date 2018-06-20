@@ -1,0 +1,19 @@
+{#
+/**
+ * @file
+ * Default theme implementation for a summary of a webform action handler.
+ *
+ * Available variables:
+ * - settings: The current configuration for this debug handler.
+ * - handler: The action handler.
+ *
+ * @ingroup themeable
+ */
+#}
+
+{% if settings.store is not null %}<b>{{ 'Store:'|t }}</b> {{ settings.store }}<br />{% endif %}
+{% if settings.order_type %}<b>{{ 'Order type:'|t }}</b> {{ settings.order_type }}<br />{% endif %}
+{% if settings.checkout_step %}<b>{{ 'Checkout step:'|t }}</b> {{ settings.checkout_step }}<br />{% endif %}
+{% if settings.payment_gateway %}<b>{{ 'Payment gateway:'|t }}</b> {{ settings.payment_gateway }}<br />{% endif %}
+{% if settings.payment_method %}<b>{{ 'Payment method:'|t }}</b> {{ settings.payment_method }}<br />{% endif %}
+
