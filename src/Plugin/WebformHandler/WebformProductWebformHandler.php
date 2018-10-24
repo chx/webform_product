@@ -6,6 +6,7 @@ use Drupal\commerce_cart\CartProviderInterface;
 use Drupal\commerce_order\Entity\OrderInterface;
 use Drupal\commerce_order\Entity\OrderItem;
 use Drupal\commerce_store\Entity\StoreInterface;
+use Drupal\Component\Render\MarkupInterface;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
@@ -13,11 +14,14 @@ use Drupal\Core\Messenger\MessengerTrait;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Url;
 use Drupal\profile\Entity\Profile;
+use Drupal\token\Token;
 use Drupal\webform\Plugin\WebformHandlerBase;
-use Drupal\webform\WebformInterface;
+use Drupal\webform\WebformException;
 use Drupal\webform\WebformSubmissionConditionsValidatorInterface;
 use Drupal\webform\WebformSubmissionInterface;
+use Drupal\webform\WebformTokenManagerInterface;
 use Drupal\webform_product\Controller\WebformProductController;
+use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 
 /**
@@ -37,23 +41,30 @@ class WebformProductWebformHandler extends WebformHandlerBase {
 
   use MessengerTrait;
 
+  // Commerce values.
+  const COMMERCE_STORE = 'store';
+  const COMMERCE_ORDER_TYPE = 'order_type';
+  const COMMERCE_ORDER_ITEM_TYPE = 'order_item_type';
+  const COMMERCE_ORDER_ITEM_TITLE = 'order_item_title';
+  const COMMERCE_CHECKOUT_STEP = 'checkout_step';
+  const COMMERCE_GATEWAY = 'payment_gateway';
+  const COMMERCE_METHOD = 'payment_method';
+
+  // Commerce order data.
+  const ORDER_PRICE = 'payment_price';
+
   // Mapped field names.
   const FIELD_STATUS = 'field_payment_status';
-  const FIELD_METHOD = 'payment_method';
   const FIELD_ORDER_ID = 'field_order_id';
   const FIELD_ORDER_URL = 'field_order_url';
   const FIELD_TOTAL_PRICE = 'field_total_price';
-  const FIELD_GATEWAY = 'payment_gateway';
-  const FIELD_CHECKOUT_STEP = 'checkout_step';
-  const FIELD_ORDER_TYPE = 'order_type';
-  const FIELD_ORDER_ITEM_TYPE = 'order_item_type';
-  const FIELD_STORE = 'store';
   const FIELD_LINK_ORDER_ORIGIN = 'field_link_order_origin';
 
-  // Mapped field defaults.
+  // Default values.
   const DEFAULT_ORDER_TYPE = 'webform';
   const DEFAULT_ORDER_ITEM_TYPE = 'webform';
   const DEFAULT_CHECKOUT_STEP = 'payment';
+  const DEFAULT_ORDER_ITEM_TITLE = '[webform_submission:source-entity:title]';
 
   /**
    * The entity type manager.
@@ -63,11 +74,45 @@ class WebformProductWebformHandler extends WebformHandlerBase {
   protected $entityTypeManager;
 
   /**
+   * The token service.
+   *
+   * @var \Drupal\token\Token
+   */
+  protected $token;
+
+
+  /**
+   * The token manager.
+   *
+   * @var \Drupal\webform\WebformTokenManagerInterface
+   */
+  protected $tokenManager;
+
+  /**
    * {@inheritdoc}
    */
-  public function __construct(array $configuration, $plugin_id, $plugin_definition, LoggerChannelFactoryInterface $logger_factory, ConfigFactoryInterface $config_factory, EntityTypeManagerInterface $entity_type_manager, WebformSubmissionConditionsValidatorInterface $conditions_validator) {
+  public function __construct(array $configuration, $plugin_id, $plugin_definition, LoggerChannelFactoryInterface $logger_factory, ConfigFactoryInterface $config_factory, EntityTypeManagerInterface $entity_type_manager, WebformSubmissionConditionsValidatorInterface $conditions_validator, Token $token, WebformTokenManagerInterface $token_manager) {
     parent::__construct($configuration, $plugin_id, $plugin_definition, $logger_factory, $config_factory, $entity_type_manager, $conditions_validator);
     $this->entityTypeManager = $entity_type_manager;
+    $this->token = $token;
+    $this->tokenManager = $token_manager;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public static function create(ContainerInterface $container, array $configuration, $plugin_id, $plugin_definition) {
+    return new static(
+      $configuration,
+      $plugin_id,
+      $plugin_definition,
+      $container->get('logger.factory'),
+      $container->get('config.factory'),
+      $container->get('entity_type.manager'),
+      $container->get('webform_submission.conditions_validator'),
+      $container->get('token'),
+      $container->get('webform.token_manager')
+    );
   }
 
   /**
@@ -75,13 +120,15 @@ class WebformProductWebformHandler extends WebformHandlerBase {
    */
   public function defaultConfiguration() {
     return [
-      self::FIELD_STORE => NULL,
-      self::FIELD_ORDER_TYPE => self::DEFAULT_ORDER_TYPE,
-      self::FIELD_ORDER_ITEM_TYPE => self::DEFAULT_ORDER_ITEM_TYPE,
+      self::COMMERCE_STORE => NULL,
+      self::COMMERCE_ORDER_TYPE => self::DEFAULT_ORDER_TYPE,
+      self::COMMERCE_ORDER_ITEM_TITLE => self::DEFAULT_ORDER_ITEM_TITLE,
+      self::COMMERCE_ORDER_ITEM_TYPE => self::DEFAULT_ORDER_ITEM_TYPE,
       'route' => 'commerce_checkout.form',
-      self::FIELD_CHECKOUT_STEP => self::DEFAULT_CHECKOUT_STEP,
-      self::FIELD_GATEWAY => NULL,
-      self::FIELD_METHOD => NULL,
+      self::COMMERCE_CHECKOUT_STEP => self::DEFAULT_CHECKOUT_STEP,
+      self::COMMERCE_GATEWAY => NULL,
+      self::COMMERCE_METHOD => NULL,
+      self::ORDER_PRICE => NULL,
       self::FIELD_STATUS => NULL,
       self::FIELD_ORDER_ID => NULL,
       self::FIELD_ORDER_URL => NULL,
@@ -104,35 +151,71 @@ class WebformProductWebformHandler extends WebformHandlerBase {
       '#type' => 'fieldset',
       '#title' => $this->t('Commerce'),
     ];
-    $form['commerce']['store'] = [
+    $form['commerce'][self::COMMERCE_STORE] = [
       '#type' => 'select',
       '#title' => $this->t('Store'),
       '#options' => $this->getEntityOptions('commerce_store'),
-      '#default_value' => $settings['store'],
+      '#default_value' => $settings[self::COMMERCE_STORE],
       '#required' => TRUE,
     ];
-    $form['commerce'][self::FIELD_ORDER_TYPE] = [
+    $form['commerce'][self::COMMERCE_ORDER_TYPE] = [
       '#type' => 'select',
       '#title' => $this->t('Order type'),
       '#options' => $this->getEntityOptions('commerce_order_type'),
-      '#default_value' => $settings[self::FIELD_ORDER_TYPE],
+      '#default_value' => $settings[self::COMMERCE_ORDER_TYPE],
       '#required' => TRUE,
     ];
-    $form['commerce'][self::FIELD_ORDER_ITEM_TYPE] = [
+    $form['commerce'][self::COMMERCE_ORDER_ITEM_TYPE] = [
       '#type' => 'select',
       '#title' => $this->t('Order item type'),
       '#options' => $this->getEntityOptions('commerce_order_item_type'),
-      '#default_value' => $settings[self::FIELD_ORDER_ITEM_TYPE],
+      '#default_value' => $settings[self::COMMERCE_ORDER_ITEM_TYPE],
       '#required' => TRUE,
     ];
-    $form['commerce'][self::FIELD_GATEWAY] = [
+    $form['commerce'][self::COMMERCE_ORDER_ITEM_TITLE] = [
+      '#type' => 'textfield',
+      '#title' => $this->t('Order item title'),
+      '#description' => $this->t('Default %default.', ['%default' => self::DEFAULT_ORDER_ITEM_TITLE]),
+      '#default_value' => $settings[self::COMMERCE_ORDER_ITEM_TITLE],
+      '#required' => TRUE,
+    ];
+    $form['commerce'][self::COMMERCE_GATEWAY] = [
       '#type' => 'select',
       '#title' => $this->t('Payment provider'),
       '#options' => $this->getEntityOptions('commerce_payment_gateway', [
         'status' => TRUE,
       ]),
-      '#default_value' => $settings[self::FIELD_GATEWAY],
+      '#default_value' => $settings[self::COMMERCE_GATEWAY],
       '#required' => TRUE,
+    ];
+
+    $token_types = ['webform', 'webform_submission'];
+    // Show webform role tokens if they have been specified.
+    if (!empty($roles_element_options)) {
+      $token_types[] = 'webform_role';
+    }
+    $form['commerce']['token_tree_link'] = $this->tokenManager->buildTreeLink(
+      $token_types,
+      $this->t('Use [webform_submission:values:ELEMENT_KEY:raw] to get plain text values.')
+    );
+
+    $form['order_data'] = [
+      '#type' => 'fieldset',
+      '#title' => $this->t('Data to create order'),
+    ];
+    $form['order_data']['info'] = [
+      '#markup' => '<p>' . $this->t('Use this price field as the price of a single order item. Leave it empty to use individual webform elements with a Price field, where one order item is created per form element.') . '</p>',
+    ];
+
+    $field_types = ['number', 'numeric', 'textfield', 'webform_computed_twig'];
+    $form['order_data'][self::ORDER_PRICE] = [
+      '#type' => 'select',
+      '#title' => $this->t('Total price'),
+      '#options' => $this->getElementsSelectOptions($field_types),
+      '#default_value' => $settings[self::ORDER_PRICE],
+      '#empty_value' => '',
+      '#required' => FALSE,
+      '#description' => $this->t('Field types allowed: @types.', ['@types' => implode(', ', $field_types)]),
     ];
 
     $form['field_mapping'] = [
@@ -181,7 +264,7 @@ class WebformProductWebformHandler extends WebformHandlerBase {
       '#default_value' => $settings[self::FIELD_TOTAL_PRICE],
       '#empty_value' => '',
       '#required' => FALSE,
-      '#description' => $this->t('Field types allowed: @types.', ['@types' => implode(', ', $field_types)]),
+      '#description' => $this->t('Field types allowed: @types.', ['@types' => implode(', ', $field_types)]) . '<br />' . $this->t('Use this if you want to safe the total order amount to a specific field.'),
     ];
 
     return $form;
@@ -190,7 +273,7 @@ class WebformProductWebformHandler extends WebformHandlerBase {
   /**
    * {@inheritdoc}
    *
-   * @todo Set mapped webform fields to 'private'.
+   * @todo Set mapped webform order and payment field permissions to 'view-only'.
    */
   public function submitConfigurationForm(array &$form, FormStateInterface $form_state) {
     parent::submitConfigurationForm($form, $form_state);
@@ -202,16 +285,13 @@ class WebformProductWebformHandler extends WebformHandlerBase {
       $this->configuration[$key] = $value;
     }
 
-    foreach ($values['field_mapping'] as $key => $value) {
+    foreach ($values['order_data'] as $key => $value) {
       $this->configuration[$key] = $value;
     }
-  }
 
-  /**
-   * {@inheritdoc}
-   */
-  public function alterElements(array &$elements, WebformInterface $webform) {
-    // @todo Move webform_product_form_webform_ui_element_form_alter() to here?
+    foreach ($values['order_result'] as $key => $value) {
+      $this->configuration[$key] = $value;
+    }
   }
 
   /**
@@ -230,6 +310,7 @@ class WebformProductWebformHandler extends WebformHandlerBase {
 
       /** @var \Drupal\commerce_cart\CartProviderInterface $cartProvider */
       $cartProvider = \Drupal::service('commerce_cart.cart_provider');
+      /** @var \Drupal\commerce_order\Entity\OrderInterface $cartOrder */
       $cartOrder = $this->getCart($cartProvider, $this->getStore(), TRUE);
 
       // Fill the Cart.
@@ -251,6 +332,9 @@ class WebformProductWebformHandler extends WebformHandlerBase {
       $this->setSubmissionOrderReference($webform_submission, $cartOrder);
       $webform_submission->set('in_draft', TRUE);
       $webform_submission->resave();
+
+      // Protect order from adding new products.
+      $cartOrder->lock();
 
       $cartOrder->save();
 
@@ -323,45 +407,109 @@ class WebformProductWebformHandler extends WebformHandlerBase {
     $currencyCode = $store->getDefaultCurrency()->getCurrencyCode();
 
     $orderItems = [];
-    $elements = $this->getWebform()->getElementsInitializedAndFlattened();
+    $configuration = $this->getConfiguration();
+    $settings = $configuration['settings'];
 
-    // Create Order Item for each:
-    // - element option with a price.
-    // - element with a top price.
-    foreach ($webformSubmission->getData() as $key => $value) {
-      if (!isset($price_fields[$key])) {
-        continue;
-      }
+    // @todo Make this also available for multiple elements.
+    $order_item_title = $this->tokenManager->replace($settings[self::COMMERCE_ORDER_ITEM_TITLE], $webformSubmission, [
+      'webform' => $this->getWebform(),
+    ]);
 
-      // Element with 'top'.
-      if (!empty($price_fields[$key]['top'])) {
-        $orderItems[] = OrderItem::create([
-          'type' => $this->configuration[self::FIELD_ORDER_ITEM_TYPE],
-          'label' => $elements[$key]['#title'] . ' - ' . $this->getWebform()->label(),
-          'quantity' => 1,
-          'unit_price' => ['number' => $price_fields[$key]['top'], 'currency_code' => $currencyCode],
-        ]);
-      }
-
-      if (!empty($price_fields[$key]['options'])) {
-        // Fix for when value is not an array.
-        if (!is_array($value)) {
-          $value = [$value];
+    if ($this->useElementBasedOrder()) {
+      // Create Order Item for each:
+      // - element option with a price.
+      // - element with a top price.
+      foreach ($webformSubmission->getData() as $key => $value) {
+        if (empty($price_fields[$key])) {
+          continue;
         }
 
-        // Option elements with price as option (checkboxes or radios).
-        foreach (array_intersect($value, array_keys($price_fields[$key]['options'])) as $option) {
+        // Element with 'top'.
+        if (!empty($price_fields[$key]['top'])) {
           $orderItems[] = OrderItem::create([
-            'type' => $this->configuration[self::FIELD_ORDER_ITEM_TYPE],
-            'title' => $elements[$key]['#options'][$option] . ' - ' . $this->getWebform()->label(),
+            'type' => $this->configuration[self::COMMERCE_ORDER_ITEM_TYPE],
+            'title' => $order_item_title,
             'quantity' => 1,
-            'unit_price' => ['number' => $price_fields[$key]['options'][$option], 'currency_code' => $currencyCode],
+            'unit_price' => [
+              'number' => $price_fields[$key]['top'],
+              'currency_code' => $currencyCode,
+            ],
           ]);
         }
+
+        if (!empty($price_fields[$key]['options'])) {
+          // Fix for when value is not an array.
+          if (!is_array($value)) {
+            $value_to_validate = [$value];
+          }
+          else {
+            $value_to_validate = $value;
+          }
+
+          $options = array_keys($price_fields[$key]['options']);
+          $price_options = array_intersect($value_to_validate, $options);
+          $has_other = $this->getWebform()->getElement($key);
+
+          // Other values.
+          if (isset($has_other['#other_type']) && $has_other['#other__type'] == 'number' && empty($price_options)) {
+            $orderItems[] = OrderItem::create([
+              'type' => $this->configuration[self::COMMERCE_ORDER_ITEM_TYPE],
+              'title' => $order_item_title,
+              'quantity' => 1,
+              'unit_price' => [
+                'number' => $value,
+                'currency_code' => $currencyCode,
+              ],
+            ]);
+          }
+          else {
+            // Option elements with price as option (checkboxes or radios).
+            foreach ($price_options as $option) {
+              $orderItems[] = OrderItem::create([
+                'type' => $this->configuration[self::COMMERCE_ORDER_ITEM_TYPE],
+                'title' => $order_item_title,
+                'quantity' => 1,
+                'unit_price' => [
+                  'number' => $price_fields[$key]['options'][$option],
+                  'currency_code' => $currencyCode,
+                ],
+              ]);
+            }
+          }
+        }
+      }
+    }
+    else {
+      $orderItems = [];
+      $price = $this->formatPrice($webformSubmission->getElementData($settings[self::ORDER_PRICE]));
+      if ($price > 0) {
+        $orderItems[] = OrderItem::create([
+          'type' => $this->configuration[self::COMMERCE_ORDER_ITEM_TYPE],
+          'title' => $order_item_title,
+          'quantity' => 1,
+          'unit_price' => [
+            'number' => $price,
+            'currency_code' => $currencyCode,
+          ],
+        ]);
       }
     }
 
     return $orderItems;
+  }
+
+  /**
+   * Determine if Element Based order must be used.
+   *
+   * The commerce order is either created with one order item per priced field
+   * or with one item based on a single field value. The latter is usually a
+   * calculated value or the result of a (if/else) condition.
+   *
+   * @return bool
+   *   Returns true if element based orders are used.
+   */
+  private function useElementBasedOrder() {
+    return empty($this->configuration[self::ORDER_PRICE]);
   }
 
   /**
@@ -465,7 +613,7 @@ class WebformProductWebformHandler extends WebformHandlerBase {
     // Redirect to checkout process.
     $response = new RedirectResponse(Url::fromRoute($this->configuration['route'], [
       'commerce_order' => $order->id(),
-      'step' => $this->configuration[self::FIELD_CHECKOUT_STEP],
+      'step' => $this->configuration[self::COMMERCE_CHECKOUT_STEP],
     ])->toString());
 
     $request = \Drupal::request();
@@ -532,20 +680,20 @@ class WebformProductWebformHandler extends WebformHandlerBase {
    */
   protected function setOrderCheckoutProcess(OrderInterface $order) {
     /** @var \Drupal\commerce_payment\Entity\PaymentGatewayInterface $payment_gateway */
-    $payment_gateway = $this->entityTypeManager->getStorage('commerce_payment_gateway')->load($this->configuration[self::FIELD_GATEWAY]);
+    $payment_gateway = $this->entityTypeManager->getStorage('commerce_payment_gateway')->load($this->configuration[self::COMMERCE_GATEWAY]);
 
     if (!$payment_gateway) {
       $this->loggerFactory->get($this->pluginId)->error(t('Failed to get a Payment Gateway'));
       return;
     }
 
-    $payment_method = empty($this->configuration[self::FIELD_METHOD]) ? NULL : $this->configuration[self::FIELD_METHOD];
+    $payment_method = empty($this->configuration[self::COMMERCE_METHOD]) ? NULL : $this->configuration[self::COMMERCE_METHOD];
 
     // Save additional info to the order to speedup the checkout progress.
     $order
-      ->set(self::FIELD_CHECKOUT_STEP, $this->configuration[self::FIELD_CHECKOUT_STEP])
-      ->set(self::FIELD_GATEWAY, $payment_gateway->id())
-      ->set(self::FIELD_METHOD, $payment_method);
+      ->set(self::COMMERCE_CHECKOUT_STEP, $this->configuration[self::COMMERCE_CHECKOUT_STEP])
+      ->set(self::COMMERCE_GATEWAY, $payment_gateway->id())
+      ->set(self::COMMERCE_METHOD, $payment_method);
   }
 
   /**
@@ -564,7 +712,7 @@ class WebformProductWebformHandler extends WebformHandlerBase {
    *   Cart of current user.
    */
   protected function getCart(CartProviderInterface $cartProvider, StoreInterface $store, $remove_existing_items = TRUE) {
-    $order_type = $this->configuration[self::FIELD_ORDER_TYPE];
+    $order_type = $this->configuration[self::COMMERCE_ORDER_TYPE];
 
     /** @var \Drupal\commerce_order\Entity\OrderInterface $order */
     $order = $cartProvider->getCart($order_type, $store) ?: $cartProvider->createCart($order_type, $store);
@@ -594,7 +742,7 @@ class WebformProductWebformHandler extends WebformHandlerBase {
   protected function getStore() {
     /** @var \Drupal\commerce_store\Entity\StoreInterface $store */
     $store = $this->entityTypeManager->getStorage('commerce_store')
-      ->load($this->configuration[self::FIELD_STORE]);
+      ->load($this->configuration[self::COMMERCE_STORE]);
 
     if (!$store) {
       $this->loggerFactory->get($this->pluginId)->error(t('Failed to get a Store'));
@@ -602,6 +750,36 @@ class WebformProductWebformHandler extends WebformHandlerBase {
     }
 
     return $store;
+  }
+
+  /**
+   * Format the price value.
+   *
+   * We allow various field types as price input. This converts them to a float
+   * value.
+   *
+   * @param mixed $value
+   *   Raw price value.
+   *
+   * @return float
+   *   Converted value.
+   */
+  private function formatPrice($value) {
+    // Convert Computed Twig.
+    if ($value instanceof MarkupInterface) {
+      $value = (string) $value;
+      $value = preg_replace('/[\n\r\t]/', '', $value);
+    }
+    // Convert text.
+    $value = (string) $value;
+    $value = trim($value);
+    $value = str_replace(',', '.', str_replace('.', '', $value));
+    $value = empty($value) ? '0' : $value;
+    if (!is_numeric($value)) {
+      throw new WebformException($this->t('Can not make price from %value.', ['%value' => $value]));
+    }
+
+    return $value;
   }
 
 }

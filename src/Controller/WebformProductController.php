@@ -7,7 +7,7 @@ use Drupal\Component\Utility\Xss;
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\DependencyInjection\ContainerInjectionInterface;
 use Drupal\Core\Messenger\MessengerTrait;
-use Drupal\Core\Routing\TrustedRedirectResponse;
+use Drupal\Core\Url;
 use Drupal\webform\WebformInterface;
 use Drupal\webform\WebformSubmissionInterface;
 use Drupal\webform_product\Plugin\WebformHandler\WebformProductWebformHandler;
@@ -35,6 +35,9 @@ class WebformProductController extends ControllerBase implements ContainerInject
    * @param \Drupal\webform\WebformInterface $webform
    *   A webform.
    *
+   * @return \Symfony\Component\HttpFoundation\RedirectResponse
+   *   The Redirect response.
+   *
    * @throws \Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException
    * @throws \Drupal\Core\Entity\EntityStorageException
    */
@@ -44,27 +47,30 @@ class WebformProductController extends ControllerBase implements ContainerInject
 
     $this->checkAccess($webform_submission, $order);
 
-    // Set webform submission to 'completed'.
     self::setSubmissionOrderStatus($webform_submission, self::PAYMENT_STATUS_COMPLETED);
 
+    // Disable the webform draft state, to mark the payment as completed.
+    // Set the webform 'completed' state, to trigger webform handlers such as
+    // Exact and Email.
     $webform_submission
       ->set('in_draft', FALSE)
+      ->set('completed', TRUE)
       ->save();
 
-    // Set order to 'completed'.
-    $this->finalizeOrder($order);
+    // Transition the order from 'draft' to 'validation'.
+    $this->placeOrder($order);
 
     // Load confirmation page settings.
     $confirmation_type = $webform_submission->getWebform()->getSetting('confirmation_type');
     $has_confirmation_url = in_array($confirmation_type, [WebformInterface::CONFIRMATION_URL, WebformInterface::CONFIRMATION_URL_MESSAGE]);
     $has_confirmation_message = !in_array($confirmation_type, [WebformInterface::CONFIRMATION_URL]);
 
-    $redirect_url = (string) $webform_submission->getSourceUrl()->toString();
+    $redirect_url = $webform_submission->getSourceUrl();
     if ($has_confirmation_url) {
       // @todo Validate url like \Drupal\webform\WebformSubmissionForm::setConfirmation().
       $url = $webform_submission->getWebform()->getSetting('confirmation_url');
       if ($url) {
-        $redirect_url = $url;
+        $redirect_url = URL::fromUserInput($url);
       }
     }
 
@@ -73,7 +79,7 @@ class WebformProductController extends ControllerBase implements ContainerInject
       $this->messenger()->addStatus(Xss::filter($message));
     }
 
-    $this->redirectToUrl($redirect_url);
+    return $this->redirectToUrl($redirect_url);
   }
 
   /**
@@ -81,6 +87,11 @@ class WebformProductController extends ControllerBase implements ContainerInject
    *
    * @param \Drupal\webform\WebformInterface $webform
    *   A webform.
+   *
+   * @return \Symfony\Component\HttpFoundation\RedirectResponse
+   *   The Redirect response.
+   *
+   * @throws \Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException
    */
   public function canceledSubmission(WebformInterface $webform) {
     $webform_submission = $this->getWebformSubmissionFromToken($webform);
@@ -90,9 +101,7 @@ class WebformProductController extends ControllerBase implements ContainerInject
 
     $this->messenger()->addWarning(t('The payment has been canceled, please re-submit the form to complete the payment.'));
 
-    $url = $webform_submission->getSourceUrl()->toString();
-
-    $this->redirectToUrl($url);
+    return $this->redirectToUrl($webform_submission->getSourceUrl());
   }
 
   /**
@@ -100,6 +109,11 @@ class WebformProductController extends ControllerBase implements ContainerInject
    *
    * @param \Drupal\webform\WebformInterface $webform
    *   A webform.
+   *
+   * @return \Symfony\Component\HttpFoundation\RedirectResponse
+   *   The Redirect response.
+   *
+   * @throws \Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException
    */
   public function exceptionSubmission(WebformInterface $webform) {
     $webform_submission = $this->getWebformSubmissionFromToken($webform);
@@ -109,9 +123,7 @@ class WebformProductController extends ControllerBase implements ContainerInject
 
     $this->messenger()->addError(t('Something went wrong, the payment has been canceled. Please try again later.'));
 
-    $url = $webform_submission->getSourceUrl()->toString();
-
-    $this->redirectToUrl($url);
+    return $this->redirectToUrl($webform_submission->getSourceUrl());
   }
 
   /**
@@ -122,8 +134,14 @@ class WebformProductController extends ControllerBase implements ContainerInject
    *
    * @throws \Drupal\Core\Entity\EntityStorageException
    */
-  protected function finalizeOrder(OrderInterface $order) {
-    $order->set('state', self::PAYMENT_STATUS_COMPLETED)->save();
+  protected function placeOrder(OrderInterface $order) {
+    $transition = $order->getState()->getWorkflow()->getTransition('place');
+    $order->getState()->applyTransition($transition);
+
+    // The order is probably payed, allow editing by shop managers again.
+    $order->unlock();
+
+    $order->save();
   }
 
   /**
@@ -188,21 +206,14 @@ class WebformProductController extends ControllerBase implements ContainerInject
   /**
    * Redirect to the given Url.
    *
-   * @param string $url
-   *   Url to redirect.
+   * @param \Drupal\Core\URL $url
+   *   Url to redirect to.
+   *
+   * @return \Symfony\Component\HttpFoundation\RedirectResponse
+   *   The Redirect response.
    */
-  protected function redirectToUrl($url) {
-    // Redirect to confirmation page.
-    $response = new TrustedRedirectResponse($url);
-
-    $request = \Drupal::request();
-    // Save the session.
-    $request->getSession()->save();
-    $response->prepare($request);
-    // Trigger kernel events.
-    \Drupal::service('kernel')->terminate($request, $response);
-
-    $response->send();
+  protected function redirectToUrl(URL $url) {
+    return $this->redirect($url->getRouteName(), $url->getRouteParameters());
   }
 
   /**

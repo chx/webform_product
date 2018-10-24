@@ -2,3 +2,7 @@ services:
   plugin.manager.webform_product:
     class: Drupal\webform_product\WebformProductPluginManager
     parent: default_plugin_manager
+  webform_product.order_subscriber:
+    class: Drupal\webform_product\EventSubscriber\OrderEventSubscriber
+    tags:
+    - { name: event_subscriber }

@@ -9,6 +9,7 @@ use Drupal\Component\Plugin\Factory\DefaultFactory;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Url;
 use Drupal\webform\WebformInterface;
+use Drupal\webform_product\Plugin\WebformHandler\WebformProductWebformHandler;
 use Drupal\webform_product\WebFormProductFormHelper;
 
 /**
@@ -64,12 +65,12 @@ function webform_product_form_commerce_checkout_flow_multistep_default_alter(&$f
   }
 
   $order = $payment->getOrder();
-  if (!$order || !$order->hasField('field_link_order_origin')) {
+  if (!$order || !$order->hasField(WebformProductWebformHandler::FIELD_LINK_ORDER_ORIGIN)) {
     return;
   }
 
   // Load the webform submission from the saved link on the order.
-  $source_uri = $payment->getOrder()->get('field_link_order_origin')->getValue();
+  $source_uri = $payment->getOrder()->get(WebformProductWebformHandler::FIELD_LINK_ORDER_ORIGIN)->getValue();
   $params = Url::fromUri($source_uri[0]['uri'])->getRouteParameters();
 
   /** @var \Drupal\webform\WebformSubmissionInterface $webformSubmission */

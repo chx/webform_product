@@ -3,6 +3,8 @@ type: module
 description: 'Setup a single webform as a product for Commerce.'
 package: Webform
 core: 8.x
+interface translation project: webform_product
+interface translation server pattern: modules/custom/%project/translations/%project.%language.po
 dependencies:
   - 'webform:webform'
   - 'commerce:commerce'
