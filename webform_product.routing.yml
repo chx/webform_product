@@ -1,0 +1,20 @@
+webform_product.payment.completed:
+  path: '/webform-product/{webform}/{order}/completed'
+  defaults:
+    _controller: '\Drupal\webform_product\Controller\WebformProductController::completedSubmission'
+  requirements:
+    _access: 'TRUE'
+
+webform_product.payment.canceled:
+  path: '/webform-product/{webform}/{order}/canceled'
+  defaults:
+    _controller: '\Drupal\webform_product\Controller\WebformProductController::canceledSubmission'
+  requirements:
+    _access: 'TRUE'
+
+webform_product.payment.exception:
+  path: '/webform-product/{webform}/{order}/exception'
+  defaults:
+    _controller: '\Drupal\webform_product\Controller\WebformProductController::exceptionSubmission'
+  requirements:
+    _access: 'TRUE'

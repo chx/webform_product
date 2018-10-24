@@ -5,13 +5,18 @@
 
 ## Usage
 1. Create a webform
-2. Add a Price element
-3. Setup the values of the element
-   1. Use the price next to the values to simulate product variations
-   2. Use the price below to create multiple products with one price
-4. Save the webform and create a submission
+2. Add elements
+   1. Order ID (int)
+   2. Order Url (url)
+   3. Order status (string)
+   4. Product (options)
+3. Set permissions for 'Order *'-fields for only administrators.
+4. Setup the values of the element Price
+   1. Use the key to the option values to simulate product variations
+   2. Use the top price below to create multiple products with one price
+5. Setup the Webform Product Handler and map the fields
+6. Create a link-field (no title) in the Order Type 'Webform' called 'field_link_order_origin'.
+7. Save the webform and create a submission
 
 ## Known issues
-* Will only work for the default store, if no store is selected as default, it will crash
-* There is no reference to the webform submission in the order
-* There is no reference to the order in the webform submission
+Still work in progress, please report issues at https://github.com/chx/webform_product/issues

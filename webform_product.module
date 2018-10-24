@@ -1,7 +1,15 @@
 <?php
 
+/**
+ * @file
+ * Hooks and alters for webform_product.
+ */
+
 use Drupal\Component\Plugin\Factory\DefaultFactory;
 use Drupal\Core\Form\FormStateInterface;
+use Drupal\Core\Url;
+use Drupal\webform\WebformInterface;
+use Drupal\webform_product\Plugin\WebformHandler\WebformProductWebformHandler;
 use Drupal\webform_product\WebFormProductFormHelper;
 
 /**
@@ -12,7 +20,10 @@ function webform_product_element_info_alter(array &$info) {
   foreach ($definitions as $id => $definition) {
     /** @var \Drupal\Component\Plugin\PluginManagerInterface $pluginManager */
     if (isset($info[$id])) {
-      $info[$id]['#process'][] = [DefaultFactory::getPluginClass($id, $definition), 'process'];
+      $info[$id]['#process'][] = [
+        DefaultFactory::getPluginClass($id, $definition),
+        'process',
+      ];
     }
   }
 }
@@ -25,8 +36,83 @@ function webform_product_form_webform_ui_element_form_alter(&$form, FormStateInt
 }
 
 /**
- * Implements hook_webform_submission_form_alter().
+ * Implements hook_theme().
  */
-function webform_product_webform_submission_form_alter(array &$form, FormStateInterface $form_state, $form_id) {
-  $form['actions']['submit']['#submit'][] = [WebFormProductFormHelper::class, 'submissionToCart'];
+function webform_product_theme() {
+  return [
+    'webform_handler_webform_product_summary' => [
+      'variables' => ['settings' => NULL, 'handler' => NULL],
+    ],
+  ];
+}
+
+/**
+ * Implements hook_form_FORM_ID_alter() for commerce_checkout_flow_multistep_default.
+ *
+ * @todo Make it work for onsite payments.
+ */
+function webform_product_form_commerce_checkout_flow_multistep_default_alter(&$form, FormStateInterface $form_state, $form_id) {
+  $offsite = NULL;
+  $payment = NULL;
+  if (isset($form['payment_process']['offsite_payment'])) {
+    $offsite = &$form['payment_process']['offsite_payment'];
+    /** @var \Drupal\commerce_payment\Entity\PaymentInterface $payment */
+    $payment = $offsite['#default_value'];
+  }
+
+  if (!$offsite || !$payment) {
+    return;
+  }
+
+  $order = $payment->getOrder();
+  if (!$order || !$order->hasField(WebformProductWebformHandler::FIELD_LINK_ORDER_ORIGIN)) {
+    return;
+  }
+
+  // Load the webform submission from the saved link on the order.
+  $source_uri = $payment->getOrder()->get(WebformProductWebformHandler::FIELD_LINK_ORDER_ORIGIN)->getValue();
+  $params = Url::fromUri($source_uri[0]['uri'])->getRouteParameters();
+
+  /** @var \Drupal\webform\WebformSubmissionInterface $webformSubmission */
+  $webformSubmission = \Drupal::entityTypeManager()->getStorage('webform_submission')->load($params['webform_submission']);
+
+  $options = [
+    'query' => [
+      'submission' => $webformSubmission->getToken(),
+    ],
+    'absolute' => TRUE,
+  ];
+
+  $webform_id = $webformSubmission->getWebform()->id();
+
+  $offsite['#return_url'] = Url::fromRoute('webform_product.payment.completed', ['webform' => $webform_id, 'order' => $order->id()], $options)->toString();
+  $offsite['#cancel_url'] = Url::fromRoute('webform_product.payment.canceled', ['webform' => $webform_id, 'order' => $order->id()], $options)->toString();
+  $offsite['#exception_url'] = Url::fromRoute('webform_product.payment.exception', ['webform' => $webform_id, 'order' => $order->id()], $options)->toString();
+}
+
+/**
+ * Implements hook_form_FORM_ID_alter() for webform_settings_confirmation_form.
+ *
+ * Remove not implemented confirmation types,
+ * if the webform_product handler is used.
+ */
+function webform_product_form_webform_settings_confirmation_form_alter(&$form, FormStateInterface $form_state) {
+  /** @var \Drupal\webform\WebformInterface $webform */
+  $webform = $form_state->getFormObject()->getEntity();
+
+  $handlers = $webform->getHandlers('webform_product', TRUE);
+  if ($handlers->count() == 0) {
+    return;
+  }
+
+  foreach ($form['confirmation_type']['confirmation_type']['#options'] as $key => $option) {
+    switch ($key) {
+      case WebformInterface::CONFIRMATION_URL:
+      case WebformInterface::CONFIRMATION_URL_MESSAGE:
+        break;
+
+      default:
+        unset($form['confirmation_type']['confirmation_type']['#options'][$key]);
+    }
+  }
 }

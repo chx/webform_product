@@ -6,3 +6,4 @@ id: webform
 purchasableEntityType: ''
 orderType: default
 traits: {  }
+locked: false
